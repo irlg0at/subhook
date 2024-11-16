@@ -1,0 +1,8 @@
+services:
+  subhook:
+    build: .
+    secrets:
+       - shodan_api_key
+secrets:
+  shodan_api_key:
+    file: /home/g0at/Bilder/shodan_api_key.txt
