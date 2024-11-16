@@ -7,6 +7,12 @@ services:
       - type: bind
         source: ./domains.txt
         target: /domains.txt
+      - type: volume
+        source: database
+        target: /data
 secrets:
   shodan_api_key:
     file: /home/g0at/Pictures/shodan_api_key.txt
+
+volumes:
+  database:

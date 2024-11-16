@@ -1,33 +1,84 @@
 use std::fs::{self, File};
 use std::io::{BufReader, BufRead};
 use reqwest::get;
+use serde::Deserialize;
 use tokio;
+use std::path::Path;
+
+mod db;
 
 const SHODANURL: &str = "https://api.shodan.io/dns/domain/";
+
+#[derive(Deserialize,Debug)]
+struct Data {
+    tags: Option<Vec<String>>,
+    subdomain: String,
+    #[serde(rename = "type")]
+    r#type: String,
+    ports: Option<Vec<i32>>,
+    value: String,
+    last_seen: String
+}
+
+#[derive(Deserialize,Debug)]
+struct Subdomains {
+    domain: String,
+    subdomains: Vec<String>,
+    data: Vec<Data>
+}
 
 #[tokio::main]
 async fn main() {
     let shodan_api_key:String = fs::read_to_string("/run/secrets/shodan_api_key").expect("Not able to read Shodan secret");
-    let domains = BufReader::new(File::open("/domains.txt").expect("Not able to read domains.txt file.")); 
+    let domains = BufReader::new(File::open("/domains.txt").expect("Not able to read domains.txt file."));
+    let db_path = Path::new("/data/domain.sqlite");
+    if !db_path.exists() {
+        db::initialize_db(db_path).expect("Could not create or reach database.");
+        println!("Database created!")
+    }
 
     for domain in domains.lines() {
-        let subdomains = get_shodan_subdomains(domain.unwrap(), &shodan_api_key).await.unwrap();
-        println!("{subdomains}");
+        let domain = match domain {
+            Ok(domain) => domain,
+            Err(domain) => {
+                eprint!("Failed to read domain on line {domain}");
+                continue;
+            }
+        };
+
+        let subdomains = match get_shodan_subdomains(domain.to_string(), &shodan_api_key).await {
+            Ok(json) => json,
+            Err(e) => {
+                eprintln!("Skipping domain {}, cause of {}", domain, e);
+                continue; 
+            }
+        };
+
+        let json: Subdomains = match serde_json::from_str(&subdomains) {
+            Ok(subdomains) => subdomains,
+            Err(e) => {
+                eprint!("Failed to parse JSON for {domain}: {e}");
+                continue;
+            }
+        }; 
+
+        let test = json.domain;
+        println!("{:?}",test)
     }
 }
 
-async fn get_shodan_subdomains(domain:String, shodan_api_key:&String) -> Option<String> {
+async fn get_shodan_subdomains(domain:String, shodan_api_key:&String) -> Result<String,reqwest::Error> {
     match get(format!("{SHODANURL}{domain}?key={shodan_api_key}")).await {
         Ok(response) => match response.text().await {
-            Ok(subdomains) => Some(subdomains),
+            Ok(subdomains) => Ok(subdomains),
             Err(e) => {
                 eprintln!("Failed to read shodan response: {e}");
-                return None
+                return Err(e)
             }
         },
         Err(e) =>  {
             eprint!("Failed to query shodan for subdomains: {e}");
-            return None
+            return Err(e)
         }
     }
 } 
