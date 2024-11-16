@@ -9,5 +9,4 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 rusqlite = "0.32.1"
 serde = { version = "1.0.206", features = ["derive"]}
 serde_json = "1.0.124"
-similar = "2.6.0"
 tokio = { version = "1.39.2", features = ["macros", "rt-multi-thread"] }

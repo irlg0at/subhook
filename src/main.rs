@@ -1,10 +1,10 @@
 use std::fs::{self, File};
 use std::io::{BufReader, BufRead};
+use std::collections::HashSet;
 use reqwest::get;
 use rusqlite::Connection;
 use tokio;
 use std::path::Path;
-use similar::{Algorithm, capture_diff_slices, DiffOp};
 
 mod db;
 mod domains;
@@ -88,9 +88,16 @@ async fn get_shodan_subdomains(domain:String, shodan_api_key:&String) -> Result<
     }
 }
 
-fn diff_subdomains(database_sd: &Vec<String>, new_sd: &Vec<String>) -> () {
-    let diff = capture_diff_slices(Algorithm::Myers, database_sd, new_sd);
-    Ok(())
+fn diff_subdomains(database_sd: &HashSet<String>, new_sd: &HashSet<String>) -> (HashSet<String>,HashSet<String>) {
+    let added: HashSet<String> = new_sd.difference(&database_sd)
+        .map(|s| (*s).clone())
+        .collect();
+
+    let removed: HashSet<String> = database_sd.difference(&new_sd)
+        .map(|s| (*s).clone())
+        .collect();
+
+    (added, removed)
 }
 
 
