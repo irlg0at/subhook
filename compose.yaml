@@ -9,4 +9,4 @@ services:
         target: /domains.txt
 secrets:
   shodan_api_key:
-    file: /home/g0at/Bilder/shodan_api_key.txt
+    file: /home/g0at/Pictures/shodan_api_key.txt

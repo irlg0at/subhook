@@ -1,6 +1,6 @@
-FROM rust:alpine as build
+FROM rust:alpine AS build
 
-RUN apk add openssl-dev musl-dev
+RUN apk add --update musl-dev
 
 COPY ./src ./src
 COPY ./Cargo.lock .
