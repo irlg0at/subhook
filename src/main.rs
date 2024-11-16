@@ -4,6 +4,7 @@ use reqwest::get;
 use rusqlite::Connection;
 use tokio;
 use std::path::Path;
+use similar::{Algorithm, capture_diff_slices, DiffOp};
 
 mod db;
 mod domains;
@@ -85,5 +86,11 @@ async fn get_shodan_subdomains(domain:String, shodan_api_key:&String) -> Result<
             return Err(e)
         }
     }
-} 
+}
+
+fn diff_subdomains(database_sd: &Vec<String>, new_sd: &Vec<String>) -> () {
+    let diff = capture_diff_slices(Algorithm::Myers, database_sd, new_sd);
+    Ok(())
+}
+
 
