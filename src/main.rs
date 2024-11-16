@@ -1,31 +1,16 @@
 use std::fs::{self, File};
 use std::io::{BufReader, BufRead};
 use reqwest::get;
-use serde::Deserialize;
+use rusqlite::Connection;
 use tokio;
 use std::path::Path;
 
 mod db;
+mod domains;
+use domains::Subdomains;
 
 const SHODANURL: &str = "https://api.shodan.io/dns/domain/";
 
-#[derive(Deserialize,Debug)]
-struct Data {
-    tags: Option<Vec<String>>,
-    subdomain: String,
-    #[serde(rename = "type")]
-    r#type: String,
-    ports: Option<Vec<i32>>,
-    value: String,
-    last_seen: String
-}
-
-#[derive(Deserialize,Debug)]
-struct Subdomains {
-    domain: String,
-    subdomains: Vec<String>,
-    data: Vec<Data>
-}
 
 #[tokio::main]
 async fn main() {
@@ -36,6 +21,10 @@ async fn main() {
         db::initialize_db(db_path).expect("Could not create or reach database.");
         println!("Database created!")
     }
+
+    let mut db_connection = Connection::open(db_path).expect("Could not open database, but path exists");
+
+
 
     for domain in domains.lines() {
         let domain = match domain {
@@ -60,10 +49,12 @@ async fn main() {
                 eprint!("Failed to parse JSON for {domain}: {e}");
                 continue;
             }
-        }; 
+        };
 
-        let test = json.domain;
-        println!("{:?}",test)
+        match db::db_add_domain(&json,&mut db_connection) {
+            Ok(()) => println!("Added domain {domain} to database"),
+            Err(e) => eprintln!("Failed to add {domain}: {e}")
+        };
     }
 }
 

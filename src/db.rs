@@ -1,6 +1,6 @@
 use std::path::Path;
-
-use rusqlite::Connection;
+use rusqlite::{Connection, Params};
+use crate::domains::Subdomains;
 
 pub fn initialize_db(db_path: &Path) -> Result<(), rusqlite::Error> {
     let conn = match Connection::open(db_path) {
@@ -12,11 +12,11 @@ pub fn initialize_db(db_path: &Path) -> Result<(), rusqlite::Error> {
     };
 
     conn.execute_batch("
-        CREATE TABLE domain(
+        CREATE TABLE IF NOT EXISTS domain(
           name TEXT PRIMARY KEY
         );
 
-        CREATE TABLE subdomain(
+        CREATE TABLE IF NOT EXISTS subdomain(
           name TEXT PRIMARY KEY,
           active INTEGER,
           parent TEXT,
@@ -25,6 +25,20 @@ pub fn initialize_db(db_path: &Path) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-pub fn db_add_domain(connection: Connection) {
-    
+pub fn db_add_domain(data: &Subdomains,connection: &mut Connection) -> Result<(), rusqlite::Error> {
+    connection.execute(
+        "INSERT OR REPLACE INTO domain(name) VALUES (?)"
+        , (&data.domain,))?; 
+
+    let tr = connection.transaction()?;
+    {
+        let mut sql = tr.prepare(
+            "INSERT OR REPLACE INTO subdomain(name,active,parent) VALUES (?1,?2,?3)")?;
+        for subdomain in &data.subdomains {
+            sql.execute((subdomain, "1", &data.domain))?;
+        }
+    }
+
+    tr.commit()?;
+    Ok(())
 }
