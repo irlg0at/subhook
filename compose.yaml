@@ -5,8 +5,8 @@ services:
        - shodan_api_key
     volumes:
       - type: bind
-      source: ./domains.txt
-      target: /domains.txt
+        source: ./domains.txt
+        target: /domains.txt
 secrets:
   shodan_api_key:
     file: /home/g0at/Bilder/shodan_api_key.txt
