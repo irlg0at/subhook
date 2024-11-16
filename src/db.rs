@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::collections::HashSet;
 use rusqlite::{Connection,Result};
 use crate::domains::Subdomains;
 
@@ -43,10 +44,10 @@ pub fn db_add_domain(data: &Subdomains,connection: &mut Connection) -> Result<()
     Ok(())
 }
 
-pub fn get_db_subdomains(domain: &str , connection:&mut Connection) -> rusqlite::Result<Vec<String>> {
+pub fn get_db_subdomains(domain: &str , connection:&mut Connection) -> rusqlite::Result<HashSet<String>> {
     connection.prepare("
         SELECT name FROM subdomain WHERE parent=?")?
         .query_map([domain],|subdomain| subdomain.get::<_,String>(0))?
-        .collect::<Result<Vec<_>>>()
+        .collect::<Result<HashSet<_>>>()
 }
 

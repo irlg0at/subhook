@@ -25,8 +25,6 @@ async fn main() {
 
     let mut db_connection = Connection::open(db_path).expect("Could not open database, but path exists");
 
-
-
     for domain in domains.lines() {
         let domain = match domain {
             Ok(domain) => domain,
@@ -65,6 +63,23 @@ async fn main() {
                 Err(e) => {eprintln!("Failed to add {domain}: {e}");continue}
             };
         }
+
+        let db = match db::get_db_subdomains(&domain,&mut db_connection) {
+            Ok(set) => set,
+            Err(e) => {eprintln!("Failed to get database subdomains for {domain}: {e}");continue}
+        };
+
+        let shodan = json.subdomains.into_iter().collect();
+
+        let diff = diff_subdomains(&db,&shodan);
+
+
+
+
+
+
+
+
 
 
 
