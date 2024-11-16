@@ -50,11 +50,24 @@ async fn main() {
                 continue;
             }
         };
-
-        match db::db_add_domain(&json,&mut db_connection) {
-            Ok(()) => println!("Added domain {domain} to database"),
-            Err(e) => eprintln!("Failed to add {domain}: {e}")
+        
+        let exists: bool = match db_connection.query_row(
+            "SELECT EXISTS(SELECT name FROM domain WHERE name = ?)", (&json.domain,),
+            |row| row.get(0)) {
+               Ok(bool) => bool,
+               Err(e) => {eprintln!("Fault occurred when checking existence of {domain}: {e}");continue}
         };
+
+        if !exists {
+            match db::db_add_domain(&json,&mut db_connection) {
+                Ok(()) => println!("Added domain {domain} to database"),
+                Err(e) => {eprintln!("Failed to add {domain}: {e}");continue}
+            };
+        }
+
+
+
+
     }
 }
 

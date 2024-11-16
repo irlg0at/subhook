@@ -1,6 +1,6 @@
 FROM rust:alpine AS build
 
-RUN apk add --update musl-dev sqlite-static pkgconf git 
+RUN apk add --update musl-dev sqlite-static pkgconf git
 
 ENV SQLITE3_STATIC=1 SQLITE3_LIB_DIR=/usr/lib/
 COPY ./src ./src
@@ -27,4 +27,4 @@ COPY --from=build --chown=subhook:subhook ./target/x86_64-unknown-linux-musl/rel
 
 USER subhook:subhook
 
-ENTRYPOINT ["/app/subhook"]
+ENTRYPOINT ["./app/subhook"]

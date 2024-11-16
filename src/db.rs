@@ -1,5 +1,5 @@
 use std::path::Path;
-use rusqlite::{Connection, Params};
+use rusqlite::Connection;
 use crate::domains::Subdomains;
 
 pub fn initialize_db(db_path: &Path) -> Result<(), rusqlite::Error> {
@@ -41,4 +41,8 @@ pub fn db_add_domain(data: &Subdomains,connection: &mut Connection) -> Result<()
 
     tr.commit()?;
     Ok(())
+}
+
+pub fn get_db_subdomains(domain: String, connection:&mut Connection) -> Vec<String> {
+    connection. 
 }
