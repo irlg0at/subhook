@@ -1,10 +1,10 @@
 use reqwest::get;
+use clokwerk::{AsyncScheduler, TimeUnits, Job};
 use rusqlite::Connection;
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use tokio;
 
 mod db;
 mod domains;
@@ -14,18 +14,33 @@ const SHODANURL: &str = "https://api.shodan.io/dns/domain/";
 
 #[tokio::main]
 async fn main() {
-    let shodan_api_key: String =
-        fs::read_to_string("/run/secrets/shodan_api_key").expect("Not able to read Shodan secret");
-    let domains =
-        BufReader::new(File::open("/domains.txt").expect("Not able to read domains.txt file."));
-    let db_path = Path::new("/data/domain.sqlite");
-    if !db_path.exists() {
-        db::initialize_db(db_path).expect("Could not create or reach database.");
-        println!("Database created!")
+    let time = "08:00";
+    let mut scheduler = AsyncScheduler::with_tz(chrono::Utc);
+    scheduler.every(1.day()).at(time).run(|| 
+        async {
+            let shodan_api_key: String =
+                fs::read_to_string("/run/secrets/shodan_api_key").expect("Not able to read Shodan secret");
+            let domains =
+                BufReader::new(File::open("/domains.txt").expect("Not able to read domains.txt file."));
+            let db_path = Path::new("/data/domain.sqlite");
+            if !db_path.exists() {
+                db::initialize_db(db_path).expect("Could not create or reach database.");
+                println!("Database created!")
+            }
+
+            println!("Running update of database...");
+            update(domains, shodan_api_key, db_path).await;
+            println!("Update done!");
+
+    });
+
+    loop {
+        scheduler.run_pending().await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
+}
 
-    
-
+async fn update(domains: BufReader<File>, shodan_api_key: String, db_path: &Path) -> (){
     let mut db_connection =
         Connection::open(db_path).expect("Could not open database, but path exists");
 
