@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Deserialize,Debug)]
+#[derive(Deserialize, Debug)]
 struct Data {
     tags: Option<Vec<String>>,
     subdomain: String,
@@ -8,12 +8,12 @@ struct Data {
     r#type: String,
     ports: Option<Vec<i32>>,
     value: String,
-    last_seen: String
+    last_seen: String,
 }
 
-#[derive(Deserialize,Debug)]
+#[derive(Deserialize, Debug)]
 pub struct Subdomains {
     pub domain: String,
     pub subdomains: Vec<String>,
-    pub data: Vec<Data>
+    pub data: Vec<Data>,
 }
