@@ -1,7 +1,7 @@
-use reqwest::get;
+use reqwest::{get,Client, RequestBuilder, Response};
 use clokwerk::{AsyncScheduler, TimeUnits, Job};
 use rusqlite::Connection;
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -11,11 +11,17 @@ mod domains;
 use domains::Subdomains;
 
 const SHODANURL: &str = "https://api.shodan.io/dns/domain/";
+const SLACK_ENDPOINT: &str = "aaaaah";
+const DISCORD_ENDPOINT: &str = "aaaaah";
+
 
 #[tokio::main]
 async fn main() {
     let time = "08:00";
     let mut scheduler = AsyncScheduler::with_tz(chrono::Utc);
+
+
+
     scheduler.every(1.day()).at(time).run(|| 
         async {
             let shodan_api_key: String =
@@ -40,7 +46,11 @@ async fn main() {
     }
 }
 
-async fn update(domains: BufReader<File>, shodan_api_key: String, db_path: &Path) -> (){
+async fn update(domains: BufReader<File>, shodan_api_key: String, db_path: &Path) -> () {
+    let webhook_url = "url";
+    let platform = "discord";
+
+
     let mut db_connection =
         Connection::open(db_path).expect("Could not open database, but path exists");
 
@@ -103,15 +113,33 @@ async fn update(domains: BufReader<File>, shodan_api_key: String, db_path: &Path
 
         let diff = diff_subdomains(&db, &shodan);
 
-        match db::db_add_subdomains(&domain, diff.0, true, &mut db_connection) {
+        match db::db_add_subdomains(&domain, &diff.0, true, &mut db_connection) {
             Ok(()) => (),
             Err(e) => eprintln!("Failed to add new subdomains for {domain}: {e}"),
         };
         
-        match db::db_add_subdomains(&domain, diff.1, false, &mut db_connection) {
+        match db::db_add_subdomains(&domain, &diff.1, false, &mut db_connection) {
             Ok(()) => (),
             Err(e) => eprintln!("Failed to update inactive subdomains for {domain}: {e}"),
         };
+
+        if !diff.0.is_empty() { 
+            let endpoint = match platform {
+                "slack" => {
+                    format!("{}{}",webhook_url,SLACK_ENDPOINT)
+                },
+
+                "discord" => {
+                    format!("{}{}",webhook_url,DISCORD_ENDPOINT)
+                },
+                _ => {eprintln!("Could not find platform {platform}");break}
+            };
+
+            match send_webhook(diff.0, &endpoint).await {
+                Ok(_r) => {println!("Webhook notification successfully sent!")},
+                Err(e) => {eprint!("Something went wrong while trying to send webhook: {e}")}
+            };
+        }
     }
 }
 
@@ -149,4 +177,10 @@ fn diff_subdomains(
         .collect();
 
     (added, removed)
+}
+
+async fn send_webhook(new_domains: HashSet<String>, webhook_url: &str) -> Result<Response, reqwest::Error> {
+    let mut content = HashMap::new();
+    content.insert("text","test");
+    Client::new().post(webhook_url).json(&content).send().await
 }

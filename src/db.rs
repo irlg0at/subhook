@@ -65,7 +65,7 @@ pub fn get_db_subdomains(
 
 pub fn db_add_subdomains(
     domain: &str,
-    subdomains: HashSet<String>,
+    subdomains: &HashSet<String>,
     active: bool,
     connection: &mut Connection,
 ) -> Result<(), rusqlite::Error> {
