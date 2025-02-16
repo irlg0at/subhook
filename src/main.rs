@@ -1,44 +1,73 @@
-use reqwest::{get,Client, RequestBuilder, Response};
+use reqwest::{get, Client, Response};
 use clokwerk::{AsyncScheduler, TimeUnits, Job};
 use rusqlite::Connection;
-use std::collections::{HashSet,HashMap};
+use std::collections::{HashSet, HashMap};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+use clap::Parser;
+use std::sync::Arc;
 
 mod db;
 mod domains;
 use domains::Subdomains;
 
 const SHODANURL: &str = "https://api.shodan.io/dns/domain/";
-const SLACK_ENDPOINT: &str = "aaaaah";
-const DISCORD_ENDPOINT: &str = "aaaaah";
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct CLI {
+    #[arg(long = "platform", short = 'p', env = "PLATFORM")]
+    platform: String,
+
+    #[arg(long = "webhook", short = 'w', env = "WEBHOOK_URL")]
+    webhook_url: String,
+
+    #[arg(long = "database", short = 'D', env = "DATABASE_PATH", default_value = "/data/subhook.sqlite")]
+    database_path: std::path::PathBuf,
+ 
+    #[arg(long = "keyfile",short = 'k', env = "KEYFILE", default_value = "/run/secrets/shodan_api_key")]
+    keyfile: String,
+    
+    #[arg(long = "domains",short = 'd', env = "DOMAINS", default_value = "./domains.txt")]
+    domains: String,
+    
+    #[arg(long = "debug", env = "DEBUG")]
+    debug: bool,
+}
 
 #[tokio::main]
 async fn main() {
     let time = "08:00";
     let mut scheduler = AsyncScheduler::with_tz(chrono::Utc);
+    let args = Arc::new(CLI::parse()); 
 
+    let run_update = {
+        let args = Arc::clone(&args); 
+        move || {
+            let args = Arc::clone(&args); 
+            async move {
+                let shodan_api_key: String =
+                    fs::read_to_string(&args.keyfile).expect("Not able to read Shodan secret");
+                let domains =
+                    BufReader::new(File::open(&args.domains).expect("Not able to read domains file."));
+                let db_path = Path::new(&args.database_path);
+                if !db_path.exists() {
+                    db::initialize_db(db_path).expect("Could not create or reach database.");
+                    println!("Database created!");
+                }
 
-
-    scheduler.every(1.day()).at(time).run(|| 
-        async {
-            let shodan_api_key: String =
-                fs::read_to_string("/run/secrets/shodan_api_key").expect("Not able to read Shodan secret");
-            let domains =
-                BufReader::new(File::open("/domains.txt").expect("Not able to read domains.txt file."));
-            let db_path = Path::new("/data/domain.sqlite");
-            if !db_path.exists() {
-                db::initialize_db(db_path).expect("Could not create or reach database.");
-                println!("Database created!")
+                println!("Running update of database...");
+                update(domains, shodan_api_key, &args.database_path, &args.webhook_url, &args.platform,&args.debug).await; 
+                println!("Update done!");
             }
-
-            println!("Running update of database...");
-            update(domains, shodan_api_key, db_path).await;
-            println!("Update done!");
-
-    });
+        }
+    };
+    
+    if args.debug {
+        run_update().await;
+    }
+    scheduler.every(1.day()).at(time).run(run_update);
 
     loop {
         scheduler.run_pending().await;
@@ -46,10 +75,7 @@ async fn main() {
     }
 }
 
-async fn update(domains: BufReader<File>, shodan_api_key: String, db_path: &Path) -> () {
-    let webhook_url = "url";
-    let platform = "discord";
-
+async fn update(domains: BufReader<File>, shodan_api_key: String, db_path: &Path, webhook_url:&str, platform:&str, debug: &bool) -> () {
 
     let mut db_connection =
         Connection::open(db_path).expect("Could not open database, but path exists");
@@ -123,21 +149,21 @@ async fn update(domains: BufReader<File>, shodan_api_key: String, db_path: &Path
             Err(e) => eprintln!("Failed to update inactive subdomains for {domain}: {e}"),
         };
 
-        if !diff.0.is_empty() { 
+        if !diff.0.is_empty() || *debug { 
             let endpoint = match platform {
                 "slack" => {
-                    format!("{}{}",webhook_url,SLACK_ENDPOINT)
+                    format!("{}",webhook_url)
                 },
 
                 "discord" => {
-                    format!("{}{}",webhook_url,DISCORD_ENDPOINT)
+                    format!("{}/slack",webhook_url)
                 },
                 _ => {eprintln!("Could not find platform {platform}");break}
             };
 
-            match send_webhook(diff.0, &endpoint).await {
+            match send_webhook(&domain,diff.0, &endpoint).await {
                 Ok(_r) => {println!("Webhook notification successfully sent!")},
-                Err(e) => {eprint!("Something went wrong while trying to send webhook: {e}")}
+                Err(e) => {eprintln!("Something went wrong while trying to send webhook: {e}")}
             };
         }
     }
@@ -179,8 +205,14 @@ fn diff_subdomains(
     (added, removed)
 }
 
-async fn send_webhook(new_domains: HashSet<String>, webhook_url: &str) -> Result<Response, reqwest::Error> {
-    let mut content = HashMap::new();
-    content.insert("text","test");
-    Client::new().post(webhook_url).json(&content).send().await
+async fn send_webhook(domain: &str, new_subdomains: HashSet<String>, webhook_url: &str) -> Result<Response, reqwest::Error> {
+    let mut content = String::new();
+    content.push_str(&format!("New subdomains for {}:\n",domain));
+    for domain in new_subdomains.iter() {
+        content.push_str(&format!("+ {}\n", domain));
+    }
+
+    let mut json = HashMap::new();
+    json.insert("text",content);
+    Client::new().post(webhook_url).json(&json).send().await
 }

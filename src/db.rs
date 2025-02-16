@@ -19,10 +19,11 @@ pub fn initialize_db(db_path: &Path) -> Result<(), rusqlite::Error> {
         );
 
         CREATE TABLE IF NOT EXISTS subdomain(
-          name TEXT PRIMARY KEY,
+          name TEXT,
           active INTEGER,
           parent TEXT,
-          FOREIGN KEY(parent) REFERENCES domain(name)
+          FOREIGN KEY(parent) REFERENCES domain(name),
+          PRIMARY KEY (name,parent)
         );",
     )?;
     Ok(())

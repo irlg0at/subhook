@@ -10,6 +10,9 @@ services:
       - type: volume
         source: database
         target: /data
+    env_file:
+      - .env
+
 secrets:
   shodan_api_key:
     file: /home/g0at/Pictures/shodan_api_key.txt
